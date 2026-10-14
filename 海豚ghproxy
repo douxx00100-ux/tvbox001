@@ -77,6 +77,24 @@
       "api": "https://gh-proxy.org/https://github.com/jizhujian/dolphin2/blob/main/py/ASMR吧.py"
     },
     {
+      "key": "吃瓜影院",
+      "name": "🐬[追剧]吃瓜影院",
+      "type": 3,
+      "api": "https://gh-proxy.org/https://github.com/jizhujian/dolphin2/blob/main/py/吃瓜影院.py"
+    },
+    {
+      "key": "影视森林",
+      "name": "🐬[追剧]影视森林(开梯)",
+      "type": 3,
+      "api": "https://gh-proxy.org/https://github.com/jizhujian/dolphin2/blob/main/py/影视森林.py"
+    },
+    {
+      "key": "PTT线上看",
+      "name": "🐬[追剧]PTT线上看",
+      "type": 3,
+      "api": "https://gh-proxy.org/https://github.com/jizhujian/dolphin2/blob/main/py/PTT线上看.py"
+    },
+    {
       "key": "洛雪TV",
       "name": "🐬[追剧]洛雪TV(关梯)",
       "type": 3,
@@ -704,50 +722,43 @@
       "key": "拾光影视",
       "name": "🐬[追剧]拾光影视.js",
       "type": 3,
-      "api": "https://gh-proxy.org/https://github.com/jizhujian/dolphin2/blob/main/jar_js/拾光影视.js",
-      "changeable": 0
+      "api": "https://gh-proxy.org/https://github.com/jizhujian/dolphin2/blob/main/jar_js/拾光影视.js"
     },
     {
       "key": "开心影院",
       "name": "🐬[追剧]开心影院.py",
       "type": 3,
-      "api": "https://gh-proxy.org/https://github.com/jizhujian/dolphin2/blob/main/py/开心影院.py",
-      "changeable": 0
+      "api": "https://gh-proxy.org/https://github.com/jizhujian/dolphin2/blob/main/py/开心影院.py"
     },
     {
       "key": "开心影院js",
       "name": "🐬[追剧]开心影院.js",
       "type": 3,
-      "api": "https://gh-proxy.org/https://github.com/jizhujian/dolphin2/blob/main/jar_js/开心影院.js",
-      "changeable": 0
+      "api": "https://gh-proxy.org/https://github.com/jizhujian/dolphin2/blob/main/jar_js/开心影院.js"
     },
     {
       "key": "西瓜影视",
       "name": "🐬[追剧]西瓜影视.js",
       "type": 3,
-      "api": "https://gh-proxy.org/https://github.com/jizhujian/dolphin2/blob/main/jar_js/西瓜影视.js",
-      "changeable": 0
+      "api": "https://gh-proxy.org/https://github.com/jizhujian/dolphin2/blob/main/jar_js/西瓜影视.js"
     },
     {
       "key": "片库",
       "name": "🐬[追剧]片库.js(关梯)",
       "type": 3,
-      "api": "https://gh-proxy.org/https://github.com/jizhujian/dolphin2/blob/main/jar_js/片库.js",
-      "changeable": 0
+      "api": "https://gh-proxy.org/https://github.com/jizhujian/dolphin2/blob/main/jar_js/片库.js"
     },
     {
       "key": "枫叶影院js",
       "name": "🐬[追剧]枫叶影院.js(关梯)",
       "type": 3,
-      "api": "https://gh-proxy.org/https://github.com/jizhujian/dolphin2/blob/main/jar_js/枫叶影院.js",
-      "changeable": 0
+      "api": "https://gh-proxy.org/https://github.com/jizhujian/dolphin2/blob/main/jar_js/枫叶影院.js"
     },
     {
       "key": "枫叶影院",
       "name": "🐬[追剧]枫叶影院.py(关梯)",
       "type": 3,
-      "api": "https://gh-proxy.org/https://github.com/jizhujian/dolphin2/blob/main/py/枫叶影院.py",
-      "changeable": 0
+      "api": "https://gh-proxy.org/https://github.com/jizhujian/dolphin2/blob/main/py/枫叶影院.py"
     },
     {
       "key": "808yr",
@@ -1259,6 +1270,12 @@
       "api": "https://gh-proxy.org/https://github.com/jizhujian/dolphin2/blob/main/py/蚕驰短剧网.py"
     },
     {
+      "key": "听友听书",
+      "name": "🐬[听书]听友听书",
+      "type": 3,
+      "api": "https://gh-proxy.org/https://github.com/jizhujian/dolphin2/blob/main/py/听友听书.py"
+    },
+    {
       "key": "起点有声",
       "name": "🐬[听书]起点有声(关梯)",
       "type": 3,
@@ -1281,6 +1298,12 @@
       "name": "🐬[听书]易听书网(关梯).py",
       "type": 3,
       "api": "https://gh-proxy.org/https://github.com/jizhujian/dolphin2/blob/main/py/易听书网.py"
+    },
+    {
+      "key": "QQ音乐",
+      "name": "🐬[音乐]QQ音乐.py",
+      "type": 3,
+      "api": "https://gh-proxy.org/https://github.com/jizhujian/dolphin2/blob/main/py/QQ音乐.py"
     },
     {
       "key": "音乐聚合",
