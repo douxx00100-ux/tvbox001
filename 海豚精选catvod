@@ -81,12 +81,6 @@
       "api": "https://github.catvod.com/https://github.com/jizhujian/dolphin2/blob/main/py/麒麟影视.py"
     },
     {
-      "key": "ik4k影院",
-      "name": "ik4k影院",
-      "type": 3,
-      "api": "https://github.catvod.com/https://github.com/jizhujian/dolphin2/blob/main/py/ik4k影院.py"
-    },
-    {
       "key": "独播库",
       "name": "独播库",
       "type": 3,
@@ -207,6 +201,13 @@
       "type": 3,
       "api": "https://github.catvod.com/https://github.com/jizhujian/dolphin2/blob/main/py/咖啡直播.py",
       "searchable": 0
+    }
+  ],
+  "lives": [
+    {
+      "name": "央视频",
+      "api": "https://github.catvod.com/https://github.com/jizhujian/dolphin2/blob/main/py/央视频.py",
+      "ext": {}
     }
   ]
 }
