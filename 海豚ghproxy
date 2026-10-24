@@ -221,12 +221,6 @@
       "api": "https://gh-proxy.org/https://github.com/jizhujian/dolphin2/blob/main/py/咕噜咕噜.py"
     },
     {
-      "key": "ik4k影院",
-      "name": "🐬[追剧]ik4k影院(关梯)",
-      "type": 3,
-      "api": "https://gh-proxy.org/https://github.com/jizhujian/dolphin2/blob/main/py/ik4k影院.py"
-    },
-    {
       "key": "魔法影视",
       "name": "🐬[追剧]魔法影视",
       "type": 3,
@@ -1077,8 +1071,14 @@
       ]
     },
     {
+      "key": "4gtv直播",
+      "name": "🐬[直播]4gtv直播",
+      "type": 3,
+      "api": "https://gh-proxy.org/https://github.com/jizhujian/dolphin2/blob/main/py/4gtv直播.py"
+    },
+    {
       "key": "广东荔枝电视台",
-      "name": "🐬[直播]广东荔枝电视台.py",
+      "name": "🐬[直播]广东荔枝电视台",
       "type": 3,
       "api": "https://gh-proxy.org/https://github.com/jizhujian/dolphin2/blob/main/py/广东荔枝电视台.py"
     },
