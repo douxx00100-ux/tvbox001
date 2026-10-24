@@ -1,5 +1,6 @@
 import {subscribe} from "./game_live_protocol.js";
 import {flvStream} from "./game_live_stream.js";
+import {createYyFlvNormalizer} from "./game_live_yy.js";
 
 const DOUYU = "https://www.douyu.com";
 const HUYA = "https://www.huya.com";
@@ -231,13 +232,25 @@ export default function() {
         return {parse: 0, url: data.timeshiftUrl, header: headers("douyu"), format: "application/x-mpegURL"};
     }
 
-    async function huyaLiveSource(id) {
+    async function huyaLines(id) {
         const data = await huyaRoom(id);
         if (data.realLiveStatus !== "ON") throw new Error("虎牙主播目前未開播");
         const lines = data.stream?.baseSteamInfoList;
         if (!Array.isArray(lines)) throw new Error("虎牙缺少播放線路");
-        const values = lines.filter(item => item.iWebPriorityRate > 0).sort((a, b) => b.iWebPriorityRate - a.iWebPriorityRate).map(item => ({n: item.sCdnType, v: huyaUrl(item)}));
-        if (!values.length) throw new Error("虎牙沒有可播放的線路");
+        const available = lines.filter(item => Number.isFinite(item.iWebPriorityRate) && item.iWebPriorityRate > 0)
+            .sort((a, b) => b.iWebPriorityRate - a.iWebPriorityRate);
+        if (!available.length) throw new Error("虎牙沒有可播放的線路");
+        return available;
+    }
+
+    async function huyaStreamUrl(id, cdn) {
+        const line = (await huyaLines(id)).find(item => item.sCdnType === cdn);
+        if (!line) throw new Error("虎牙播放線路已失效");
+        return huyaUrl(line);
+    }
+
+    async function huyaLiveSource(id) {
+        const values = (await huyaLines(id)).map(item => ({n: item.sCdnType, v: getProxyUrl({live: "huya:" + id, cdn: item.sCdnType})}));
         return {parse: 0, url: {values, position: 0}, header: headers("huya"), format: "video/x-flv"};
     }
 
@@ -265,17 +278,19 @@ export default function() {
             return [200, "application/json; charset=utf-8", JSON.stringify(await douyuReplay(room.id, params.time)), {"Cache-Control": "no-store"}];
         }
         const room = roomId(params.live);
-        if (room.platform !== "douyu") throw new Error("此平台不需要串流續接");
-        await douyuUrl(room.id);
+        async function getUrl() {
+            if (room.platform === "yy") return (await yyStreamSource(room.id)).url;
+            return room.platform === "douyu" ? douyuUrl(room.id) : huyaStreamUrl(room.id, params.cdn);
+        }
+        const cacheKey = room.platform === "huya" ? `room:huya:${room.id}` : `stream:${room.platform}:${room.id}`;
+        await getUrl();
         const options = {headers: headers(room.platform), timeout: 15000, callTimeout: 0};
         async function open() {
-            let url = await douyuUrl(room.id);
-            let reader = await net.openStream(url, options);
+            let reader = await net.openStream(await getUrl(), options);
             if ([401, 403, 404].includes(reader.code)) {
                 reader.close();
-                net.clearCache(`stream:douyu:${room.id}`);
-                url = await douyuUrl(room.id);
-                reader = await net.openStream(url, options);
+                net.clearCache(cacheKey);
+                reader = await net.openStream(await getUrl(), options);
             }
             if (reader.code !== 200) {
                 reader.close();
@@ -283,7 +298,9 @@ export default function() {
             }
             return reader;
         }
-        const response = await net.stream(flvStream(open));
+        const minDuration = room.platform === "douyu" ? 0 : 10000;
+        const createNormalizer = room.platform === "yy" ? createYyFlvNormalizer : undefined;
+        const response = await net.stream(flvStream(open, minDuration, createNormalizer));
         return [200, "video/x-flv", response.stream, {"Cache-Control": "no-store", "Accept-Ranges": "none"}];
     }
 
@@ -370,7 +387,7 @@ export default function() {
         });
     }
 
-    async function yyLiveSource(id) {
+    async function yyStreamSource(id) {
         return net.cached(`stream:yy:${id}`, {ttl: 5000, stale: false}, async () => {
             const room = await yyRoom(id);
             const sid = String(room.sid), ssid = String(room.ssid);
@@ -385,8 +402,15 @@ export default function() {
                     avp_parameter: {version: 1, client_type: 8, service_type: 0, imsi: 0, send_time: Math.floor(stamp / 1000), line_seq: -1, gear: 4, ssl: 1, stream_format: 0},
                 },
             });
-            return {parse: 0, url: yyStreamUrl(result), header: headers("yy"), format: "video/x-flv"};
+            const url = new URL(yyStreamUrl(result));
+            url.searchParams.append("playeruid", "0");
+            url.searchParams.append("uuid", deviceId);
+            return {parse: 0, url: url.toString(), header: headers("yy"), format: "video/x-flv"};
         });
+    }
+
+    async function yyLiveSource(id) {
+        return {...await yyStreamSource(id), url: getProxyUrl({live: "yy:" + id})};
     }
 
     return {init, home, homeVod: () => ({list: []}), category, detail, search, play, proxy, danmaku};

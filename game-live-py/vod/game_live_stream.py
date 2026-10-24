@@ -5,29 +5,36 @@ class ReadError(Exception):
     pass
 
 
-def flv_stream(open_source, sleep):
+def flv_stream(open_source, sleep, min_duration=0, create_normalizer=None):
     timeline = {"started": False, "last": -1}
     delays = (500, 1000, 2000)
     failures = 0
     while True:
         reader = open_source()
         previous = timeline["last"]
+        failure = None
         try:
-            yield from _read_flv(reader, timeline)
-            failures = 0
+            yield from _read_flv(reader, timeline, create_normalizer() if create_normalizer else None)
         except ReadError as error:
-            if timeline["last"] - previous >= 10000:
-                failures = 0
-            if failures == len(delays):
-                raise error.__cause__
-            failures += 1
+            failure = error.__cause__
         finally:
             reader.close()
+        duration = timeline["last"] - previous
+        if failure is None and duration >= min_duration:
+            failures = 0
+        else:
+            if duration >= 10000:
+                failures = 0
+            if failures == len(delays):
+                if failure is not None:
+                    raise failure
+                raise EOFError("直播串流反覆提前結束")
+            failures += 1
         if failures:
             sleep(delays[failures - 1])
 
 
-def _read_flv(reader, timeline):
+def _read_flv(reader, timeline, normalize=None):
     read = _read_bytes(reader)
     header = _read_header(read)
     continuing = timeline["started"]
@@ -52,19 +59,21 @@ def _read_flv(reader, timeline):
                 break
             if int.from_bytes(data[length:], "big") != length + 11:
                 raise ValueError("直播 FLV 封包長度錯誤")
-            if type == 18 and continuing:
-                continue
-            media = _is_media(type, data, length)
-            count += int(media)
-            value = _timestamp(tag, clock, timeline, media) & 0xffffffff
-            tag = bytearray(tag)
-            tag[4:8] = bytes((value >> 16 & 255, value >> 8 & 255, value & 255, value >> 24))
-            batch.extend((tag, data))
-            size += len(tag) + len(data)
-            if size >= 65536 or time.monotonic() >= flush_at:
-                yield b"".join(batch)
-                batch, size = [], 0
-                flush_at = time.monotonic() + 0.25
+            packets = normalize(tag, data) if normalize else ((tag, data),)
+            for tag, data in packets:
+                if tag[0] == 18 and continuing:
+                    continue
+                media = _is_media(tag[0], data, len(data) - 4)
+                count += int(media)
+                value = _timestamp(tag, clock, timeline, media) & 0xffffffff
+                tag = bytearray(tag)
+                tag[4:8] = bytes((value >> 16 & 255, value >> 8 & 255, value & 255, value >> 24))
+                batch.extend((tag, data))
+                size += len(tag) + len(data)
+                if size >= 65536 or time.monotonic() >= flush_at:
+                    yield b"".join(batch)
+                    batch, size = [], 0
+                    flush_at = time.monotonic() + 0.25
     except ReadError as error:
         failure = error
     if size:

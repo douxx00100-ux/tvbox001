@@ -1,20 +1,26 @@
-export async function* flvStream(open) {
+export async function* flvStream(open, minDuration = 0, createNormalizer) {
     const timeline = {started: false, last: -1};
     const delays = [500, 1000, 2000];
     let failures = 0;
     while (true) {
         const reader = await open();
         const previous = timeline.last;
+        let failure;
         try {
-            yield* readFlv(reader, timeline);
-            failures = 0;
+            yield* readFlv(reader, timeline, createNormalizer?.());
         } catch (error) {
             if (!(error instanceof ReadError)) throw error;
-            if (timeline.last - previous >= 10000) failures = 0;
-            if (failures === delays.length) throw error.cause;
-            failures++;
+            failure = error.cause;
         } finally {
             reader.close();
+        }
+        const duration = timeline.last - previous;
+        if (!failure && duration >= minDuration) {
+            failures = 0;
+        } else {
+            if (duration >= 10000) failures = 0;
+            if (failures === delays.length) throw failure || new Error("直播串流反覆提前結束");
+            failures++;
         }
         if (failures) await net.sleep(delays[failures - 1]);
     }
@@ -22,7 +28,7 @@ export async function* flvStream(open) {
 
 class ReadError extends Error {}
 
-async function* readFlv(reader, timeline) {
+async function* readFlv(reader, timeline, normalize) {
     const read = readBytes(reader);
     const header = await readFlvHeader(read);
     const continuing = timeline.started;
@@ -44,17 +50,20 @@ async function* readFlv(reader, timeline) {
             const data = await read(length + 4);
             if (!data) break;
             if (uint32(data, length) !== length + 11) throw new Error("直播 FLV 封包長度錯誤");
-            if (type === 18 && continuing) continue;
-            const media = isMedia(type, data, length);
-            if (media) count++;
-            writeTimestamp(tag, timestamp(tag, clock, timeline, media));
-            batch.push(tag, data);
-            size += tag.byteLength + data.byteLength;
-            if (size >= 65536 || Date.now() >= flushAt) {
-                yield join(batch);
-                batch = [];
-                size = 0;
-                flushAt = Date.now() + 250;
+            const packets = normalize ? normalize(tag, data) : [[tag, data]];
+            for (const [tag, data] of packets) {
+                if (tag[0] === 18 && continuing) continue;
+                const media = isMedia(tag[0], data, data.length - 4);
+                if (media) count++;
+                writeTimestamp(tag, timestamp(tag, clock, timeline, media));
+                batch.push(tag, data);
+                size += tag.byteLength + data.byteLength;
+                if (size >= 65536 || Date.now() >= flushAt) {
+                    yield join(batch);
+                    batch = [];
+                    size = 0;
+                    flushAt = Date.now() + 250;
+                }
             }
         }
     } catch (error) {

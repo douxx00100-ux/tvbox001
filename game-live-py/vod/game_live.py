@@ -89,7 +89,7 @@ def _yy_card(item):
 
 def _yy_stream_url(result):
     code = result.get("result", 0)
-    if type(code) is not int or code != 0:
+    if type(code) not in (int, float) or code != 0:
         raise ValueError("YY 播放接口回應錯誤")
     streams = (result.get("channel_stream_info") or {}).get("streams")
     addresses = (result.get("avp_info_res") or {}).get("stream_line_addr") or {}
@@ -99,7 +99,8 @@ def _yy_stream_url(result):
         if stream.get("type") != 2:
             continue
         info = json.loads(stream["json"])
-        if info.get("is_cdn") != 1 or info.get("encoderType") != 100:
+        cdn = info.get("is_cdn")
+        if type(cdn) not in (int, float) or cdn != 1 or info.get("encoderType") != 100:
             continue
         line = addresses.get(f"{stream['appidstr']}_{stream['stream_name']}") or {}
         url = (line.get("cdn_info") or {}).get("url")
@@ -129,13 +130,14 @@ class Spider(BaseSpider):
         return "直播"
 
     def getDependence(self):
-        return ["game_live_protocol", "game_live_stream"]
+        return ["game_live_protocol", "game_live_stream", "game_live_yy"]
 
     def init(self, extend=""):
         self._stop_danmaku = None
         self.device_id = uuid.uuid4().hex
         self.protocol = self.loadModule("game_live_protocol")
         self.stream = self.loadModule("game_live_stream")
+        self.yy_stream = self.loadModule("game_live_yy")
 
     def homeContent(self, filter):
         result = {"class": [{"type_id": id, "type_name": name, "land": 1, "ratio": 1.78} for id, name in NAMES.items()]}
@@ -285,7 +287,7 @@ class Spider(BaseSpider):
                     raise ValueError("YY 房間不存在或缺少頻道資料")
                 parts = [sid[1], ssid[1]]
             result = self.net.json(YY + f"/api/liveInfoDetail/{parts[0]}/{parts[1]}/0", {"headers": _headers("yy")})
-            if type(result.get("resultCode")) is not int or result["resultCode"] != 0:
+            if type(result.get("resultCode")) not in (int, float) or result["resultCode"] != 0:
                 raise ValueError("YY 房間接口回應錯誤")
             data = result.get("data")
             if not isinstance(data, dict) or not data.get("sid") or not data.get("ssid") or not data.get("name"):
@@ -544,24 +546,38 @@ class Spider(BaseSpider):
             raise ValueError("斗魚沒有回傳回看播放網址")
         return {"parse": 0, "url": data["timeshiftUrl"], "header": _headers("douyu"), "format": "application/x-mpegURL"}
 
-    def _huya_live(self, id):
+    def _huya_lines(self, id):
         data = self._huya_room(id)
         if data.get("realLiveStatus") != "ON":
             raise ValueError("虎牙主播目前未開播")
         lines = (data.get("stream") or {}).get("baseSteamInfoList")
         if not isinstance(lines, list):
             raise ValueError("虎牙缺少播放線路")
-        lines = sorted((item for item in lines if item["iWebPriorityRate"] > 0),
-                       key=lambda item: item["iWebPriorityRate"], reverse=True)
-        if not lines:
+        available = []
+        for item in lines:
+            rate = item.get("iWebPriorityRate")
+            if type(rate) in (int, float) and math.isfinite(rate) and rate > 0:
+                available.append(item)
+        available.sort(key=lambda item: item["iWebPriorityRate"], reverse=True)
+        if not available:
             raise ValueError("虎牙沒有可播放的線路")
-        values = [{"n": item["sCdnType"], "v": _huya_url(item)} for item in lines]
+        return available
+
+    def _huya_stream_url(self, id, cdn):
+        for item in self._huya_lines(id):
+            if item["sCdnType"] == cdn:
+                return _huya_url(item)
+        raise ValueError("虎牙播放線路已失效")
+
+    def _huya_live(self, id):
+        values = [{"n": item["sCdnType"], "v": self.getProxyUrl({"live": "huya:" + id, "cdn": item["sCdnType"]})}
+                  for item in self._huya_lines(id)]
         return {
             "parse": 0, "url": {"values": values, "position": 0},
             "header": _headers("huya"), "format": "video/x-flv"
         }
 
-    def _yy_live(self, id):
+    def _yy_source(self, id):
 
         def load():
             room = self._yy_room(id)
@@ -584,9 +600,15 @@ class Spider(BaseSpider):
                                       "send_time": stamp // 1000, "line_seq": -1, "gear": 4, "ssl": 1, "stream_format": 0}
                 }
             })
-            return {"parse": 0, "url": _yy_stream_url(result), "header": _headers("yy"), "format": "video/x-flv"}
+            source = urlsplit(_yy_stream_url(result))
+            query = urlencode({"playeruid": 0, "uuid": self.device_id})
+            url = source._replace(query=source.query + ("&" if source.query else "") + query).geturl()
+            return {"parse": 0, "url": url, "header": _headers("yy"), "format": "video/x-flv"}
 
         return self.net.cached(f"stream:yy:{id}", {"ttl": 5000, "stale": False}, load)
+
+    def _yy_live(self, id):
+        return {**self._yy_source(id), "url": self.getProxyUrl({"live": "yy:" + id})}
 
     def playerContent(self, flag, id, vipFlags):
         room = _room_id(id)
@@ -613,23 +635,32 @@ class Spider(BaseSpider):
                 {"Cache-Control": "no-store"}
             ]
         room = _room_id(params.get("live"))
-        if room["platform"] != "douyu":
-            raise ValueError("此平台不需要串流續接")
-        self._douyu_url(room["id"])
+        platform, id = room["platform"], room["id"]
+
+        def get_url():
+            if platform == "yy":
+                return self._yy_source(id)["url"]
+            return self._douyu_url(id) if platform == "douyu" else self._huya_stream_url(id, params.get("cdn"))
+
+        cache_key = f"room:huya:{id}" if platform == "huya" else f"stream:{platform}:{id}"
+        get_url()
 
         def open_source():
-            options = {"headers": _headers("douyu"), "timeout": 15000, "callTimeout": 0}
-            reader = self.net.openStream(self._douyu_url(room["id"]), options)
+            options = {"headers": _headers(platform), "timeout": 15000, "callTimeout": 0}
+            reader = self.net.openStream(get_url(), options)
             if reader.code in (401, 403, 404):
                 reader.close()
-                self.net.clearCache(f"stream:douyu:{room['id']}")
-                reader = self.net.openStream(self._douyu_url(room["id"]), options)
+                self.net.clearCache(cache_key)
+                reader = self.net.openStream(get_url(), options)
             if reader.code != 200:
                 reader.close()
                 raise ValueError("直播串流 HTTP " + str(reader.code))
             return reader
 
-        response = self.net.stream(self.stream.flv_stream(open_source, self.net.sleep))
+        min_duration = 10000 if platform in ("huya", "yy") else 0
+        create_normalizer = self.yy_stream.Normalizer if platform == "yy" else None
+        stream = self.stream.flv_stream(open_source, self.net.sleep, min_duration, create_normalizer)
+        response = self.net.stream(stream)
         return [200, "video/x-flv", response["stream"], {"Cache-Control": "no-store", "Accept-Ranges": "none"}]
 
     def danmaku(self, id, emit):
